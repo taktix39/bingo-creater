@@ -272,7 +272,7 @@ let cells=[];
 let arranged=[];
 let strategy='priority';
 let dragSrcIdx=null, lastBingoCount=0, hits=[];
-let s2DragSrc=null, s3DragSrcIdx=null;
+let _dragSrcRow=null;
 
 const $=id=>document.getElementById(id);
 
@@ -384,6 +384,32 @@ $('free-toggle').addEventListener('change',()=>{
 $('new-btn').addEventListener('click',()=>{ cells=[]; arranged=[]; updateSize(size); show('s1'); });
 $('s1-back').addEventListener('click',()=>{ renderSavedList(); show('s0'); });
 
+// ---- SORT HELPER (mouse + touch) ----
+function addSortable(handle,row,listEl,rowSel,isForbidden,doSwap){
+  let touchOver=null;
+  const clearOver=()=>listEl.querySelectorAll(rowSel).forEach(r=>r.classList.remove('drag-over'));
+  row.draggable=true;
+  row.addEventListener('dragstart',e=>{_dragSrcRow=row;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+  row.addEventListener('dragend',()=>{row.classList.remove('dragging');clearOver();_dragSrcRow=null;});
+  row.addEventListener('dragover',e=>{e.preventDefault();if(isForbidden(row))return;clearOver();row.classList.add('drag-over');});
+  row.addEventListener('drop',e=>{e.preventDefault();if(!_dragSrcRow||_dragSrcRow===row||isForbidden(row))return;clearOver();doSwap(_dragSrcRow,row);_dragSrcRow=null;});
+  handle.addEventListener('touchstart',e=>{e.preventDefault();_dragSrcRow=row;row.classList.add('dragging');row.style.pointerEvents='none';},{passive:false});
+  handle.addEventListener('touchmove',e=>{
+    e.preventDefault();
+    const t=e.touches[0],el=document.elementFromPoint(t.clientX,t.clientY);
+    const tgt=el&&el.closest?el.closest(rowSel):null;
+    clearOver();touchOver=(tgt&&tgt!==row&&!isForbidden(tgt))?tgt:null;
+    if(touchOver)touchOver.classList.add('drag-over');
+  },{passive:false});
+  handle.addEventListener('touchend',e=>{
+    e.preventDefault();
+    row.classList.remove('dragging');row.style.pointerEvents='';
+    clearOver();
+    if(touchOver){doSwap(row,touchOver);touchOver=null;}
+    _dragSrcRow=null;
+  },{passive:false});
+}
+
 // ---- S1→S2 ----
 $('to-s2').addEventListener('click',()=>{ buildInputList(); show('s2'); });
 function buildInputList(){
@@ -403,20 +429,15 @@ function buildInputList(){
       const val=cells[i]?cells[i].text:'';
       const safe=val.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
       row.innerHTML='<span class="drag-handle">⠿</span><span class="input-num">'+num+'</span><input class="cell-input" type="text" maxlength="30" placeholder="マス '+num+'" value="'+safe+'">';
-      row.draggable=true;
-      row.addEventListener('dragstart',e=>{s2DragSrc=row;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-      row.addEventListener('dragend',()=>{row.classList.remove('dragging');list.querySelectorAll('.input-row').forEach(r=>r.classList.remove('drag-over'));});
-      row.addEventListener('dragover',e=>{e.preventDefault();if(row.querySelector('.free-cell'))return;list.querySelectorAll('.input-row').forEach(r=>r.classList.remove('drag-over'));row.classList.add('drag-over');});
-      row.addEventListener('drop',e=>{
-        e.preventDefault();
-        if(!s2DragSrc||s2DragSrc===row||row.querySelector('.free-cell'))return;
-        const rows=Array.from(list.querySelectorAll('.input-row'));
-        const si=rows.indexOf(s2DragSrc),di=rows.indexOf(row);
-        if(si<di)list.insertBefore(s2DragSrc,row.nextSibling);
-        else list.insertBefore(s2DragSrc,row);
-        list.querySelectorAll('.input-row').forEach((r,idx)=>{const n=r.querySelector('.input-num');if(n)n.textContent=String(idx+1);});
-        row.classList.remove('drag-over');
-      });
+      addSortable(row.querySelector('.drag-handle'),row,list,'.input-row',
+        r=>!!r.querySelector('.free-cell'),
+        (src,dst)=>{
+          const rows=Array.from(list.querySelectorAll('.input-row'));
+          const si=rows.indexOf(src),di=rows.indexOf(dst);
+          if(si<di)list.insertBefore(src,dst.nextSibling);else list.insertBefore(src,dst);
+          list.querySelectorAll('.input-row').forEach((r,idx)=>{const n=r.querySelector('.input-num');if(n)n.textContent=String(idx+1);});
+        }
+      );
       num++;
     }
     list.appendChild(row);
@@ -464,17 +485,14 @@ function renderDiffList(){
     row.dataset.cellIdx=String(i);
     const btns=opts.map(o=>'<button class="diff-btn '+o.key+(cells[i].diff===o.key?' active':'')+'" data-idx="'+i+'" data-diff="'+o.key+'">'+o.label+'</button>').join('');
     row.innerHTML='<span class="drag-handle">⠿</span><span class="diff-label" title="'+escHtml(cell.text)+'">'+escHtml(cell.text)+'</span><div class="diff-btns">'+btns+'</div>';
-    row.draggable=true;
-    row.addEventListener('dragstart',e=>{s3DragSrcIdx=i;row.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
-    row.addEventListener('dragend',()=>{row.classList.remove('dragging');list.querySelectorAll('.diff-row').forEach(r=>r.classList.remove('drag-over'));});
-    row.addEventListener('dragover',e=>{e.preventDefault();list.querySelectorAll('.diff-row').forEach(r=>r.classList.remove('drag-over'));row.classList.add('drag-over');});
-    row.addEventListener('drop',e=>{
-      e.preventDefault();
-      const dstIdx=parseInt(row.dataset.cellIdx);
-      if(s3DragSrcIdx===null||s3DragSrcIdx===dstIdx)return;
-      const tmp=cells[s3DragSrcIdx];cells[s3DragSrcIdx]=cells[dstIdx];cells[dstIdx]=tmp;
-      renderDiffList();
-    });
+    addSortable(row.querySelector('.drag-handle'),row,list,'.diff-row',
+      ()=>false,
+      (src,dst)=>{
+        const si=parseInt(src.dataset.cellIdx),di=parseInt(dst.dataset.cellIdx);
+        const tmp=cells[si];cells[si]=cells[di];cells[di]=tmp;
+        renderDiffList();
+      }
+    );
     row.querySelectorAll('.diff-btn').forEach(btn=>{
       btn.addEventListener('click',()=>{
         const idx=parseInt(btn.dataset.idx);
