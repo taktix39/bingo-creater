@@ -747,17 +747,6 @@ function renderPlay(){
   const grid=$('bingo-grid');const cs=gridCS();
   grid.style.gridTemplateColumns='repeat('+size+',1fr)';
   grid.style.width='100%';grid.style.margin='0 auto';grid.innerHTML='';
-  const bingoLines=getBingoLines();
-  const winSet=new Set();bingoLines.forEach(l=>l.forEach(i=>winSet.add(i)));
-  const reachLines=getReachLines();
-  const reachMissing=new Set(reachLines.map(l=>l.find(i=>!hits[i])));
-  const banner=$('reach-banner');
-  if(reachLines.length>0){
-    banner.textContent='リーチ × '+reachLines.length;
-    banner.classList.add('show');
-  } else {
-    banner.classList.remove('show');
-  }
   const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
   arranged.forEach((item,i)=>{
     const text=typeof item==='string'?item:item.text;
@@ -765,21 +754,35 @@ function renderPlay(){
     cell.className='bingo-cell';
     cell.style.fontSize=cs<60?'9px':cs<80?'11px':'13px';
     cell.textContent=text;
-    if(i===freeIdx){cell.classList.add('free');}
-    else{
-      if(hits[i]&&winSet.has(i))cell.classList.add('bingo-line');
-      else if(hits[i])cell.classList.add('hit');
-      else if(reachMissing.has(i))cell.classList.add('reach');
-      cell.addEventListener('click',()=>toggleCell(i));
-    }
+    if(i===freeIdx)cell.classList.add('free');
+    else cell.addEventListener('click',()=>toggleCell(i));
     grid.appendChild(cell);
+  });
+  updatePlayState();
+}
+
+function updatePlayState(){
+  const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
+  const bingoLines=getBingoLines();
+  const winSet=new Set();bingoLines.forEach(l=>l.forEach(i=>winSet.add(i)));
+  const reachLines=getReachLines();
+  const reachMissing=new Set(reachLines.map(l=>l.find(i=>!hits[i])));
+  const banner=$('reach-banner');
+  if(reachLines.length>0){banner.textContent='リーチ × '+reachLines.length;banner.classList.add('show');}
+  else banner.classList.remove('show');
+  Array.from($('bingo-grid').children).forEach((cell,i)=>{
+    if(i===freeIdx)return;
+    cell.className='bingo-cell';
+    if(hits[i]&&winSet.has(i))cell.classList.add('bingo-line');
+    else if(hits[i])cell.classList.add('hit');
+    else if(reachMissing.has(i))cell.classList.add('reach');
   });
 }
 
 function toggleCell(i){
   hits[i]=!hits[i];
   const bingoLines=getBingoLines(),count=bingoLines.length;
-  $('bingo-count').textContent=String(count);renderPlay();
+  $('bingo-count').textContent=String(count);updatePlayState();
   upsertSession();
   if(count>lastBingoCount){
     lastBingoCount=count;
