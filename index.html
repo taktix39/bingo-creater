@@ -254,7 +254,17 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
   </div>
   <div class="reach-banner" id="reach-banner"></div>
   <div class="bingo-grid" id="bingo-grid"></div>
+  <div id="other-players" style="margin-top:16px"></div>
 </div>
+</div>
+
+<div class="overlay" id="name-overlay">
+  <div class="modal">
+    <h2 style="font-size:20px;margin-bottom:8px">プレイヤー名</h2>
+    <p style="margin-bottom:16px;font-size:13px;color:#666">他の人に表示される名前を入力</p>
+    <input class="save-input" id="name-input" type="text" placeholder="名前（最大10文字）" maxlength="10" style="width:100%;margin-bottom:12px">
+    <button class="btn-primary" id="name-submit">プレイ開始</button>
+  </div>
 </div>
 
 <div class="overlay" id="overlay">
@@ -266,6 +276,7 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let size=4, useFree=true;
 let cells=[];
@@ -273,6 +284,12 @@ let arranged=[];
 let strategy='priority';
 let dragSrcIdx=null, lastBingoCount=0, hits=[];
 let _dragSrcRow=null;
+let myPlayerName=localStorage.getItem('bingo-player-name')||'';
+let mySessionId=null,otherSessions={},realtimeSub=null;
+
+const SUPABASE_URL='https://hxjgjpnfzfmwcadmqjlb.supabase.co';
+const SUPABASE_KEY='sb_publishable_o8txm3imBL-jg6nfKJAWbg_x4t1kfZL';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 const $=id=>document.getElementById(id);
 
@@ -383,6 +400,43 @@ $('free-toggle').addEventListener('change',()=>{
 // ---- TOP ----
 $('new-btn').addEventListener('click',()=>{ cells=[]; arranged=[]; updateSize(size); show('s1'); });
 $('s1-back').addEventListener('click',()=>{ renderSavedList(); show('s0'); });
+
+// ---- SUPABASE HELPERS ----
+function simpleHash(str){let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+str.charCodeAt(i)|0;return Math.abs(h).toString(36);}
+function getCardId(){const b=new URLSearchParams(location.search).get('b');return simpleHash(b||JSON.stringify({s:size,c:arranged,f:useFree?1:0}));}
+function getMySessionId(cardId){const k='bingo-sid-'+cardId;let s=localStorage.getItem(k);if(!s){s=crypto.randomUUID();localStorage.setItem(k,s);}return s;}
+async function upsertSession(){
+  try{await sb.from('bingo_sessions').upsert({id:mySessionId,card_id:getCardId(),player_name:myPlayerName,hits:JSON.stringify(hits),bingo_count:getBingoLines().length,updated_at:new Date().toISOString()});}catch(e){}
+}
+async function setupRealtime(cardId){
+  if(realtimeSub){sb.removeChannel(realtimeSub);realtimeSub=null;}
+  otherSessions={};
+  try{const{data}=await sb.from('bingo_sessions').select('*').eq('card_id',cardId).neq('id',mySessionId);data?.forEach(s=>{otherSessions[s.id]=s;});renderOtherPlayers();}catch(e){}
+  realtimeSub=sb.channel('bingo-'+cardId)
+    .on('postgres_changes',{event:'*',schema:'public',table:'bingo_sessions',filter:'card_id=eq.'+cardId},p=>{
+      if(p.eventType==='DELETE')delete otherSessions[p.old.id];
+      else if(p.new.id!==mySessionId)otherSessions[p.new.id]=p.new;
+      renderOtherPlayers();
+    }).subscribe();
+}
+function renderOtherPlayers(){
+  const el=$('other-players');
+  const freeIdx=size%2===1&&useFree?Math.floor(size*size/2):-1;
+  const sessions=Object.values(otherSessions).filter(s=>Date.now()-new Date(s.updated_at).getTime()<30*60*1000);
+  if(!sessions.length){el.innerHTML='';return;}
+  el.innerHTML='<p style="font-size:13px;color:#666;margin-bottom:8px;text-align:center">参加中のプレイヤー</p>'+
+    sessions.map(s=>{
+      const h=JSON.parse(s.hits||'[]');
+      const dots=arranged.map((_,i)=>'<div style="width:10px;height:10px;border-radius:2px;background:'+(i===freeIdx?'#9FE1CB':h[i]?'#1D9E75':'#e0e0e0')+'"></div>').join('');
+      return '<div style="background:#fff;border:0.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;margin-bottom:8px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+          '<span style="font-size:14px;font-weight:500;flex:1">'+escHtml(s.player_name)+'</span>'+
+          '<span style="background:#E1F5EE;color:#0F6E56;border-radius:12px;padding:2px 10px;font-size:12px">'+s.bingo_count+' ライン</span>'+
+        '</div>'+
+        '<div style="display:grid;grid-template-columns:repeat('+size+',10px);gap:2px">'+dots+'</div>'+
+      '</div>';
+    }).join('');
+}
 
 // ---- SORT HELPER (mouse + touch) ----
 function addSortable(handle,row,listEl,rowSel,isForbidden,doSwap){
@@ -636,16 +690,25 @@ $('copy-btn').addEventListener('click',()=>{
 });
 
 $('to-play').addEventListener('click',startPlay);
-$('play-reset').addEventListener('click',()=>{renderSavedList();show('s0');});
+$('play-reset').addEventListener('click',()=>{if(realtimeSub){sb.removeChannel(realtimeSub);realtimeSub=null;}renderSavedList();show('s0');});
 
 // ---- PLAY ----
 function startPlay(){
+  if(!myPlayerName){$('name-input').value='';$('name-overlay').classList.add('show');return;}
+  _doStartPlay();
+}
+async function _doStartPlay(){
   hits=new Array(size*size).fill(false);
   const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
   if(freeIdx>=0)hits[freeIdx]=true;
   lastBingoCount=0;$('bingo-count').textContent='0';
   $('reach-banner').classList.remove('show');
+  $('other-players').innerHTML='';
   renderPlay();show('s-play');
+  const cardId=getCardId();
+  mySessionId=getMySessionId(cardId);
+  upsertSession();
+  setupRealtime(cardId);
 }
 
 function getAllLines(){
@@ -702,6 +765,7 @@ function toggleCell(i){
   hits[i]=!hits[i];
   const bingoLines=getBingoLines(),count=bingoLines.length;
   $('bingo-count').textContent=String(count);renderPlay();
+  upsertSession();
   if(count>lastBingoCount){
     lastBingoCount=count;
     $('modal-msg').textContent=count+' ライン達成！おめでとうございます！';
@@ -711,6 +775,12 @@ function toggleCell(i){
 
 $('modal-cont').addEventListener('click',()=>$('overlay').classList.remove('show'));
 $('modal-new').addEventListener('click',()=>{$('overlay').classList.remove('show');renderSavedList();show('s0');});
+$('name-submit').addEventListener('click',()=>{
+  const name=$('name-input').value.trim();if(!name)return;
+  myPlayerName=name;localStorage.setItem('bingo-player-name',name);
+  $('name-overlay').classList.remove('show');_doStartPlay();
+});
+$('name-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('name-submit').click();});
 
 function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$(id).classList.add('active');}
 
