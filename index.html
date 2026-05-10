@@ -122,6 +122,8 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 .saved-item-meta{font-size:12px;color:#888;margin-top:2px}
 .saved-item-del{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#aaa;font-size:12px;cursor:pointer;flex-shrink:0}
 .saved-item-del:hover{border-color:#EF9F27;color:#633806;background:#FAEEDA}
+.saved-item-copy{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#1D9E75;font-size:12px;cursor:pointer;flex-shrink:0}
+.saved-item-copy:hover{border-color:#1D9E75;background:#E1F5EE}
 .empty-msg{text-align:center;color:#aaa;font-size:14px;padding:24px 0}
 .sync-key-disp{flex:1;padding:10px 12px;border:0.5px solid #e0e0e0;border-radius:8px;font-size:18px;font-weight:700;letter-spacing:3px;background:#f9f9f7;color:#1D9E75;text-align:center}
 @media(max-width:400px){
@@ -383,8 +385,18 @@ function renderSavedList(){
           '<div class="saved-item-name">'+escHtml(item.name)+'</div>'+
           '<div class="saved-item-meta">'+item.size+'×'+item.size+' / '+item.date+'</div>'+
         '</div>'+
-        '<button class="saved-item-del" data-i="'+i+'">削除</button>';
-      row.addEventListener('click',e=>{if(e.target.classList.contains('saved-item-del'))return;loadCard(item);});
+        '<div style="display:flex;gap:6px;flex-shrink:0">'+
+          '<button class="saved-item-copy">コピー</button>'+
+          '<button class="saved-item-del">削除</button>'+
+        '</div>';
+      row.addEventListener('click',e=>{
+        if(e.target.classList.contains('saved-item-del')||e.target.classList.contains('saved-item-copy'))return;
+        loadCard(item);
+      });
+      row.querySelector('.saved-item-copy').addEventListener('click',e=>{
+        e.stopPropagation();
+        copyCard(item);
+      });
       row.querySelector('.saved-item-del').addEventListener('click',e=>{
         e.stopPropagation();
         if(!confirm('"'+item.name+'" を削除しますか？'))return;
@@ -410,6 +422,17 @@ function loadCard(item){
     buildInputList();
     show('s2');
   }
+}
+
+function copyCard(item){
+  size=item.size; useFree=item.useFree;
+  cells=[...item.cells];
+  arranged=[];
+  updateSize(size);
+  $('free-toggle').checked=useFree;
+  $('free-label').textContent=useFree?'中央を FREE にする':'中央も自分で入力する';
+  buildInputList();
+  show('s2');
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
