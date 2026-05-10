@@ -145,6 +145,24 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 <!-- S0: TOP (saved list) -->
 <div class="screen active" id="s0">
   <div class="hdr"><h1>カスタム備後</h1><p>保存済みカードを選ぶか、新規作成</p></div>
+  <div class="card" style="margin-bottom:12px" id="player-name-card">
+    <label>プレイヤー名</label>
+    <div id="player-name-disp" style="display:flex;align-items:center;gap:8px">
+      <span id="player-name-text" style="flex:1;font-size:15px;font-weight:500;color:#222"></span>
+      <button class="btn-secondary" id="player-name-edit-btn" style="white-space:nowrap;flex-shrink:0">変更</button>
+    </div>
+    <div id="player-name-form" style="display:none;gap:8px">
+      <input class="save-input" id="player-name-input" type="text" placeholder="名前を入力" maxlength="20" style="flex:1;font-size:14px">
+      <button class="save-btn" id="player-name-save-btn">保存</button>
+    </div>
+    <div id="player-name-empty" style="display:none">
+      <p style="font-size:13px;color:#aaa;margin-bottom:8px">プレイ時に他の参加者へ表示される名前です</p>
+      <div style="display:flex;gap:8px">
+        <input class="save-input" id="player-name-input-empty" type="text" placeholder="名前を入力" maxlength="20" style="flex:1;font-size:14px">
+        <button class="save-btn" id="player-name-save-empty-btn">設定</button>
+      </div>
+    </div>
+  </div>
   <button class="btn-primary" id="new-btn" style="margin-bottom:16px">＋ 新しいカードを作る</button>
   <div class="card">
     <label>保存済みカード</label>
@@ -386,6 +404,39 @@ async function syncFromSupabase(key){
     return true;
   }catch(e){console.error('[bingo] sync error:',e);return false;}
 }
+
+function renderPlayerName(){
+  if(myPlayerName){
+    $('player-name-text').textContent=myPlayerName;
+    $('player-name-disp').style.display='flex';
+    $('player-name-empty').style.display='none';
+    $('player-name-form').style.display='none';
+  }else{
+    $('player-name-disp').style.display='none';
+    $('player-name-empty').style.display='block';
+  }
+}
+function savePlayerName(name){
+  if(!name)return;
+  myPlayerName=name;
+  localStorage.setItem('bingo-player-name',name);
+  renderPlayerName();
+}
+$('player-name-edit-btn').addEventListener('click',()=>{
+  $('player-name-input').value=myPlayerName;
+  $('player-name-disp').style.display='none';
+  $('player-name-form').style.display='flex';
+  $('player-name-input').focus();
+});
+$('player-name-save-btn').addEventListener('click',()=>{
+  savePlayerName($('player-name-input').value.trim());
+});
+$('player-name-input').addEventListener('keydown',e=>{if(e.key==='Enter')$('player-name-save-btn').click();});
+$('player-name-save-empty-btn').addEventListener('click',()=>{
+  savePlayerName($('player-name-input-empty').value.trim());
+  $('player-name-input-empty').value='';
+});
+$('player-name-input-empty').addEventListener('keydown',e=>{if(e.key==='Enter')$('player-name-save-empty-btn').click();});
 
 function renderSavedList(){
   $('sync-key-disp').textContent=syncKey;
@@ -1037,6 +1088,7 @@ function loadFromUrl(){
     }catch(e){}
   }
   updateSize(4);
+  renderPlayerName();
   renderSavedList();
   show('s0');
   // 起動時に一度だけクラウド同期
