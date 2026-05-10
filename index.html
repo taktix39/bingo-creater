@@ -343,11 +343,15 @@ async function saveCardToSupabase(card){
   try{
     const payload={sync_key:syncKey,name:card.name,size:card.size,use_free:card.useFree,
       cells:card.cells,arranged:card.arranged,date:card.date,updated_at:new Date().toISOString()};
-    if(card.sbId) payload.id=card.sbId;
-    const{data,error}=await sb.from('bingo_cards').upsert(payload).select('id').single();
-    if(error){console.error('[bingo] card save error:',error);return null;}
-    return data?.id||null;
-  }catch(e){console.error('[bingo] card save error:',e);return null;}
+    let data,error;
+    if(card.sbId){
+      ({data,error}=await sb.from('bingo_cards').update(payload).eq('id',card.sbId).eq('sync_key',syncKey).select('id').single());
+    }else{
+      ({data,error}=await sb.from('bingo_cards').insert(payload).select('id').single());
+    }
+    if(error){console.error('[bingo] card save error:',error);return{ok:false,msg:error.message||'保存エラー'};}
+    return{ok:true,id:data?.id||null};
+  }catch(e){console.error('[bingo] card save error:',e);return{ok:false,msg:String(e)};}
 }
 async function deleteCardFromSupabase(sbId){
   if(!sbId)return;
@@ -390,8 +394,6 @@ function renderSavedList(){
       el.appendChild(row);
     });
   }
-  // バックグラウンドで自動同期
-  syncFromSupabase(syncKey).then(ok=>{if(ok)renderSavedList();});
 }
 
 function loadCard(item){
@@ -411,17 +413,26 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 $('save-btn').addEventListener('click',async()=>{
   const name=$('save-name').value.trim();
   if(!name){$('save-msg').textContent='名前を入力してください';return;}
+  $('save-btn').disabled=true;
+  $('save-msg').textContent='保存中...';
   const now=new Date();
   const date=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+(now.getDate());
   const card={name,size,useFree,cells,arranged,date};
-  const sbId=await saveCardToSupabase(card);
-  if(sbId)card.sbId=sbId;
+  const result=await saveCardToSupabase(card);
+  $('save-btn').disabled=false;
+  if(result&&result.ok){
+    card.sbId=result.id;
+    $('save-msg').style.color='';
+    $('save-msg').textContent='「'+name+'」を保存しました！(クラウド同期済み)';
+  }else{
+    $('save-msg').style.color='#c00';
+    $('save-msg').textContent='クラウド保存失敗: '+(result?.msg||'不明なエラー')+'（ローカルには保存します）';
+  }
   const list=loadSaved();
   list.unshift(card);
   saveSaved(list);
-  $('save-msg').textContent='「'+name+'」を保存しました！';
   $('save-name').value='';
-  setTimeout(()=>{ $('save-msg').textContent=''; },3000);
+  setTimeout(()=>{ $('save-msg').textContent='';$('save-msg').style.color=''; },5000);
 });
 
 // ---- SIZE ----
@@ -880,6 +891,8 @@ function loadFromUrl(){
   updateSize(4);
   renderSavedList();
   show('s0');
+  // 起動時に一度だけクラウド同期
+  syncFromSupabase(syncKey).then(ok=>{if(ok)renderSavedList();});
 }
 loadFromUrl();
 </script>
