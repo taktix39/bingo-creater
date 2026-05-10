@@ -403,18 +403,31 @@ function simpleHash(str){let h=0;for(let i=0;i<str.length;i++)h=Math.imul(31,h)+
 function getCardId(){const b=new URLSearchParams(location.search).get('b');return simpleHash(b||JSON.stringify({s:size,c:arranged,f:useFree?1:0}));}
 function getMySessionId(cardId){const k='bingo-sid-'+cardId;let s=localStorage.getItem(k);if(!s){s=crypto.randomUUID();localStorage.setItem(k,s);}return s;}
 async function upsertSession(){
-  try{await sb.from('bingo_sessions').upsert({id:mySessionId,card_id:getCardId(),player_name:myPlayerName,hits:JSON.stringify(hits),bingo_count:getBingoLines().length,updated_at:new Date().toISOString()});}catch(e){}
+  const{error}=await sb.from('bingo_sessions').upsert({
+    id:mySessionId,card_id:getCardId(),player_name:myPlayerName,
+    hits:JSON.stringify(hits),bingo_count:getBingoLines().length,
+    updated_at:new Date().toISOString()
+  });
+  if(error)console.error('[bingo] upsert error:',error);
 }
 async function setupRealtime(cardId){
   if(realtimeSub){sb.removeChannel(realtimeSub);realtimeSub=null;}
   otherSessions={};
-  try{const{data}=await sb.from('bingo_sessions').select('*').eq('card_id',cardId).neq('id',mySessionId);data?.forEach(s=>{otherSessions[s.id]=s;});renderOtherPlayers();}catch(e){}
+  const{data,error}=await sb.from('bingo_sessions').select('*').eq('card_id',cardId).neq('id',mySessionId);
+  if(error)console.error('[bingo] fetch error:',error);
+  data?.forEach(s=>{otherSessions[s.id]=s;});
+  renderOtherPlayers();
   realtimeSub=sb.channel('bingo-'+cardId)
-    .on('postgres_changes',{event:'*',schema:'public',table:'bingo_sessions',filter:'card_id=eq.'+cardId},p=>{
-      if(p.eventType==='DELETE')delete otherSessions[p.old.id];
-      else if(p.new.id!==mySessionId)otherSessions[p.new.id]=p.new;
+    .on('postgres_changes',{event:'*',schema:'public',table:'bingo_sessions'},p=>{
+      if(p.eventType==='DELETE'){delete otherSessions[p.old.id];renderOtherPlayers();return;}
+      if(p.new.card_id!==cardId)return;
+      if(p.new.id!==mySessionId)otherSessions[p.new.id]=p.new;
       renderOtherPlayers();
-    }).subscribe();
+    })
+    .subscribe((status,err)=>{
+      if(err)console.error('[bingo] realtime error:',err);
+      else console.log('[bingo] realtime:',status);
+    });
 }
 function renderOtherPlayers(){
   const el=$('other-players');
