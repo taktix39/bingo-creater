@@ -399,12 +399,17 @@ function renderSavedList(){
 function loadCard(item){
   size=item.size; useFree=item.useFree;
   cells=item.cells;
+  arranged=item.arranged&&item.arranged.length?item.arranged:[];
   updateSize(size);
   $('free-toggle').checked=useFree;
   $('free-label').textContent=useFree?'中央を FREE にする':'中央も自分で入力する';
-  // rebuild input list then go to s2
-  buildInputList();
-  show('s2');
+  if(arranged.length){
+    // 配置済みなら直接プレイ画面へ
+    startPlay();
+  }else{
+    buildInputList();
+    show('s2');
+  }
 }
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
