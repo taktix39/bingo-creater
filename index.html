@@ -306,18 +306,15 @@ function renderSteps(cur,el){
 
 // ---- STORAGE ----
 const STORE_KEY='bingo-cards';
-async function loadSaved(){
-  try{
-    const r=await window.storage.get(STORE_KEY);
-    return r?JSON.parse(r.value):[];
-  }catch(e){return [];}
+function loadSaved(){
+  try{const r=localStorage.getItem(STORE_KEY);return r?JSON.parse(r):[];}catch(e){return [];}
 }
-async function saveSaved(list){
-  try{ await window.storage.set(STORE_KEY,JSON.stringify(list)); }catch(e){}
+function saveSaved(list){
+  try{localStorage.setItem(STORE_KEY,JSON.stringify(list));}catch(e){}
 }
 
 async function renderSavedList(){
-  const list=await loadSaved();
+  const list=loadSaved();
   const el=$('saved-list');
   if(!list.length){el.innerHTML='<div class="empty-msg">保存済みカードはありません</div>';return;}
   el.innerHTML='';
@@ -338,9 +335,9 @@ async function renderSavedList(){
     row.querySelector('.saved-item-del').addEventListener('click',async e=>{
       e.stopPropagation();
       if(!confirm('"'+item.name+'" を削除しますか？')) return;
-      const l=await loadSaved();
+      const l=loadSaved();
       l.splice(i,1);
-      await saveSaved(l);
+      saveSaved(l);
       renderSavedList();
     });
     el.appendChild(row);
@@ -364,11 +361,11 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 $('save-btn').addEventListener('click',async()=>{
   const name=$('save-name').value.trim();
   if(!name){$('save-msg').textContent='名前を入力してください';return;}
-  const list=await loadSaved();
+  const list=loadSaved();
   const now=new Date();
   const date=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+(now.getDate());
   list.unshift({name,size,useFree,cells,arranged,date});
-  await saveSaved(list);
+  saveSaved(list);
   $('save-msg').textContent='「'+name+'」を保存しました！';
   $('save-name').value='';
   setTimeout(()=>{ $('save-msg').textContent=''; },3000);
