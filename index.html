@@ -748,15 +748,31 @@ function renderManualArrange(){
 }
 
 // ---- S5→S6 ----
-$('to-s6').addEventListener('click',()=>{
+$('to-s6').addEventListener('click',async()=>{
   const data={s:size,c:arranged,f:useFree?1:0};
-  $('share-url').textContent=location.href.split('?')[0]+'?b='+encodeURIComponent(JSON.stringify(data));
+  const longUrl=location.href.split('?')[0]+'?b='+encodeURIComponent(JSON.stringify(data));
+  $('share-url').textContent='短縮URL生成中...';
+  $('copy-btn').disabled=true;
   show('s6');
+  try{
+    const res=await fetch('https://is.gd/create.php?format=json&url='+encodeURIComponent(longUrl));
+    const json=await res.json();
+    if(json.shorturl){
+      $('share-url').textContent=json.shorturl;
+    }else{
+      $('share-url').textContent=longUrl;
+    }
+  }catch(e){
+    $('share-url').textContent=longUrl;
+  }
+  $('copy-btn').disabled=false;
 });
 $('s6-back').addEventListener('click',()=>show('s5'));
 
 $('copy-btn').addEventListener('click',()=>{
-  navigator.clipboard.writeText($('share-url').textContent).then(()=>{
+  const url=$('share-url').textContent;
+  if(!url||url==='短縮URL生成中...')return;
+  navigator.clipboard.writeText(url).then(()=>{
     const btn=$('copy-btn');btn.textContent='コピーしました!';btn.classList.add('copied');
     setTimeout(()=>{btn.textContent='URLをコピー';btn.classList.remove('copied');},2000);
   });
