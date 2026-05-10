@@ -124,6 +124,8 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 .saved-item-del:hover{border-color:#EF9F27;color:#633806;background:#FAEEDA}
 .saved-item-copy{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#1D9E75;font-size:12px;cursor:pointer;flex-shrink:0}
 .saved-item-copy:hover{border-color:#1D9E75;background:#E1F5EE}
+.saved-item-edit{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#555;font-size:12px;cursor:pointer;flex-shrink:0}
+.saved-item-edit:hover{border-color:#888;background:#f5f5f5}
 .empty-msg{text-align:center;color:#aaa;font-size:14px;padding:24px 0}
 .sync-key-disp{flex:1;padding:10px 12px;border:0.5px solid #e0e0e0;border-radius:8px;font-size:18px;font-weight:700;letter-spacing:3px;background:#f9f9f7;color:#1D9E75;text-align:center}
 @media(max-width:400px){
@@ -307,6 +309,7 @@ let arranged=[];
 let strategy='priority';
 let dragSrcIdx=null, lastBingoCount=0, hits=[];
 let _dragSrcRow=null;
+let _editingCard=null;
 let myPlayerName=localStorage.getItem('bingo-player-name')||'';
 let mySessionId=null,otherSessions={},realtimeSub=null;
 
@@ -386,12 +389,17 @@ function renderSavedList(){
           '<div class="saved-item-meta">'+item.size+'×'+item.size+' / '+item.date+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:6px;flex-shrink:0">'+
-          '<button class="saved-item-copy">コピー</button>'+
+          '<button class="saved-item-edit">編集</button>'+
+          '<button class="saved-item-copy">複製</button>'+
           '<button class="saved-item-del">削除</button>'+
         '</div>';
       row.addEventListener('click',e=>{
-        if(e.target.classList.contains('saved-item-del')||e.target.classList.contains('saved-item-copy'))return;
+        if(e.target.classList.contains('saved-item-del')||e.target.classList.contains('saved-item-copy')||e.target.classList.contains('saved-item-edit'))return;
         loadCard(item);
+      });
+      row.querySelector('.saved-item-edit').addEventListener('click',e=>{
+        e.stopPropagation();
+        editCard(item);
       });
       row.querySelector('.saved-item-copy').addEventListener('click',e=>{
         e.stopPropagation();
@@ -424,7 +432,20 @@ function loadCard(item){
   }
 }
 
+function editCard(item){
+  _editingCard=item;
+  size=item.size; useFree=item.useFree;
+  cells=[...item.cells];
+  arranged=item.arranged&&item.arranged.length?[...item.arranged]:[];
+  updateSize(size);
+  $('free-toggle').checked=useFree;
+  $('free-label').textContent=useFree?'中央を FREE にする':'中央も自分で入力する';
+  buildInputList();
+  show('s2');
+}
+
 function copyCard(item){
+  _editingCard=null;
   size=item.size; useFree=item.useFree;
   cells=[...item.cells];
   arranged=[];
@@ -446,6 +467,7 @@ $('save-btn').addEventListener('click',async()=>{
   const now=new Date();
   const date=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+(now.getDate());
   const card={name,size,useFree,cells,arranged,date};
+  if(_editingCard&&_editingCard.sbId) card.sbId=_editingCard.sbId;
   const result=await saveCardToSupabase(card);
   $('save-btn').disabled=false;
   if(result&&result.ok){
@@ -457,7 +479,13 @@ $('save-btn').addEventListener('click',async()=>{
     $('save-msg').textContent='クラウド保存失敗: '+(result?.msg||'不明なエラー')+'（ローカルには保存します）';
   }
   const list=loadSaved();
-  list.unshift(card);
+  if(_editingCard){
+    const idx=list.findIndex(c=>c.sbId&&c.sbId===_editingCard.sbId||(c.name===_editingCard.name&&c.date===_editingCard.date));
+    if(idx>=0){list[idx]=card;}else{list.unshift(card);}
+    _editingCard=null;
+  }else{
+    list.unshift(card);
+  }
   saveSaved(list);
   $('save-name').value='';
   setTimeout(()=>{ $('save-msg').textContent='';$('save-msg').style.color=''; },5000);
@@ -487,7 +515,7 @@ $('free-toggle').addEventListener('change',()=>{
 });
 
 // ---- TOP ----
-$('new-btn').addEventListener('click',()=>{ cells=[]; arranged=[]; updateSize(size); show('s1'); });
+$('new-btn').addEventListener('click',()=>{ cells=[]; arranged=[]; _editingCard=null; updateSize(size); show('s1'); });
 $('s1-back').addEventListener('click',()=>{ renderSavedList(); show('s0'); });
 
 // ---- SUPABASE HELPERS ----
@@ -777,6 +805,7 @@ function renderManualArrange(){
 
 // ---- S5→S6 ----
 $('to-s6').addEventListener('click',async()=>{
+  if(_editingCard) $('save-name').value=_editingCard.name;
   const data={s:size,c:arranged,f:useFree?1:0};
   const longUrl=location.href.split('?')[0]+'?b='+encodeURIComponent(JSON.stringify(data));
   $('share-url').textContent='短縮URL生成中...';
