@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カスタム備後</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="apple-touch-icon" href="favicon.png">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;color:#1a1a1a;font-size:15px}
+.app{max-width:680px;margin:0 auto;padding:20px 16px 40px}
+.screen{display:none}.screen.active{display:block}
+.hdr{text-align:center;padding:28px 0 20px}
+.hdr h1{font-size:22px;font-weight:500;margin-bottom:4px}
+.hdr p{font-size:13px;color:#666}
+.steps{display:flex;align-items:center;justify-content:center;margin-bottom:24px;flex-wrap:wrap;gap:2px}
+.step{display:flex;align-items:center;gap:5px;font-size:12px;color:#aaa}
+.step.active{color:#1D9E75;font-weight:500}.step.done{color:#639922}
+.step-dot{width:20px;height:20px;border-radius:50%;border:1.5px solid currentColor;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500;flex-shrink:0}
+.step-line{width:16px;height:1px;background:#e0e0e0;margin:0 2px}
+.card{background:#fff;border:0.5px solid #e0e0e0;border-radius:12px;padding:20px;margin-bottom:14px}
+.card label{font-size:13px;color:#666;display:block;margin-bottom:10px}
+.size-opts{display:flex;gap:8px}
+.size-btn{flex:1;padding:10px;border:0.5px solid #e0e0e0;background:#fff;border-radius:8px;font-size:14px;cursor:pointer;transition:all 0.15s}
+.size-btn.active{border-color:#1D9E75;background:#E1F5EE;color:#085041;font-weight:500}
+.toggle-row{display:flex;align-items:center;gap:10px;margin-top:4px}
+.toggle{position:relative;width:40px;height:22px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.slider{position:absolute;inset:0;background:#ccc;border-radius:11px;cursor:pointer;transition:0.2s}
+.slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:0.2s}
+.toggle input:checked+.slider{background:#1D9E75}
+.toggle input:checked+.slider:before{transform:translateX(18px)}
+.toggle-label{font-size:14px;color:#333}
+.btn-primary{width:100%;padding:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:500;cursor:pointer;transition:opacity 0.15s}
+.btn-primary:hover{opacity:0.9}
+.btn-secondary{padding:10px 20px;background:#fff;color:#0F6E56;border:0.5px solid #1D9E75;border-radius:8px;font-size:14px;cursor:pointer}
+.btn-secondary:hover{background:#E1F5EE}
+.btn-row{display:flex;gap:8px;margin-top:14px}
+.btn-row .btn-secondary{flex:1}.btn-row .btn-primary{flex:2;margin:0}
+.input-list{display:flex;flex-direction:column;gap:6px}
+.input-row{display:flex;align-items:center;gap:8px}
+.input-num{font-size:12px;color:#aaa;width:20px;text-align:right;flex-shrink:0}
+.cell-input{flex:1;padding:9px 12px;border:0.5px solid #e0e0e0;border-radius:6px;font-size:14px;background:#f9f9f7;outline:none;transition:border-color 0.15s}
+.cell-input:focus{border-color:#1D9E75;background:#fff}
+.cell-input.free-cell{background:#E1F5EE;color:#0F6E56;font-weight:500;text-align:center;cursor:default}
+.diff-legend{display:flex;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:12px;color:#666}
+.legend-dot{width:10px;height:10px;border-radius:50%}
+.diff-list{display:flex;flex-direction:column;gap:8px}
+.diff-row{display:flex;align-items:center;gap:10px;padding:10px 12px;border:0.5px solid #e0e0e0;border-radius:8px;background:#f9f9f7}
+.diff-label{flex:1;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.diff-btns{display:flex;gap:4px;flex-shrink:0}
+.diff-btn{padding:4px 10px;border-radius:6px;border:0.5px solid #e0e0e0;background:#fff;font-size:12px;cursor:pointer;transition:all 0.15s;color:#666}
+.diff-btn.diagonal.active{background:#EAF3DE;color:#3B6D11;border-color:#639922;font-weight:500}
+.diff-btn.center.active{background:#E1F5EE;color:#085041;border-color:#1D9E75;font-weight:500}
+.diff-btn.other.active{background:#FAEEDA;color:#633806;border-color:#EF9F27;font-weight:500}
+.strategy-opts{display:flex;gap:8px;margin-bottom:14px}
+.strategy-btn{flex:1;padding:10px 8px;border:0.5px solid #e0e0e0;border-radius:8px;font-size:12px;text-align:center;cursor:pointer;background:#fff;color:#555;transition:all 0.15s;line-height:1.4}
+.strategy-btn.active{border-color:#1D9E75;background:#E1F5EE;color:#0F6E56;font-weight:500}
+.strategy-btn span{display:block;font-size:11px;color:#aaa;margin-top:2px;font-weight:400}
+.strategy-btn.active span{color:#1D9E75}
+.auto-hint{font-size:12px;color:#888;text-align:center;margin-bottom:10px}
+.auto-result-grid{display:grid;gap:6px;margin:0 auto 14px}
+.auto-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border-radius:8px;font-size:11px;text-align:center;padding:6px;line-height:1.3;word-break:break-all;border:0.5px solid transparent}
+.auto-cell.diagonal{background:#EAF3DE;border-color:#C0DD97;color:#27500A}
+.auto-cell.center{background:#E1F5EE;border-color:#9FE1CB;color:#04342C}
+.auto-cell.other{background:#FAEEDA;border-color:#FAC775;color:#633806}
+.auto-cell.free{background:#E1F5EE;border-color:#9FE1CB;color:#0F6E56;font-weight:500}
+.auto-cell.unset{background:#f9f9f7;border-color:#e0e0e0;color:#aaa}
+.reshuffle-btn{width:100%;padding:10px;background:#fff;color:#0F6E56;border:0.5px solid #1D9E75;border-radius:8px;font-size:14px;cursor:pointer;margin-bottom:8px}
+.reshuffle-btn:hover{background:#E1F5EE}
+.arrange-grid{display:grid;gap:6px;margin:0 auto}
+.arrange-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;border:0.5px solid #e0e0e0;border-radius:8px;font-size:11px;text-align:center;padding:6px;line-height:1.3;cursor:grab;word-break:break-all;transition:all 0.15s;user-select:none;position:relative}
+.arrange-cell.diff-diagonal{background:#EAF3DE;border-color:#C0DD97;color:#27500A}
+.arrange-cell.diff-center{background:#E1F5EE;border-color:#9FE1CB;color:#04342C}
+.arrange-cell.diff-other{background:#FAEEDA;border-color:#FAC775;color:#633806}
+.arrange-cell.free{background:#E1F5EE;border-color:#9FE1CB;color:#0F6E56;font-weight:500;cursor:default}
+.arrange-cell.drag-over{border:2px dashed #1D9E75 !important;opacity:0.7}
+.arrange-cell.dragging{opacity:0.4}
+.arrange-cell .drag-icon{position:absolute;top:3px;right:3px;font-size:10px;color:#aaa}
+.url-box{background:#f5f5f3;border:0.5px solid #e0e0e0;border-radius:8px;padding:10px 14px;font-size:12px;word-break:break-all;color:#333;margin-bottom:10px;line-height:1.6}
+.copy-btn{width:100%;padding:10px;background:#fff;color:#0F6E56;border:0.5px solid #1D9E75;border-radius:8px;font-size:14px;cursor:pointer;margin-bottom:8px}
+.copy-btn.copied{background:#EAF3DE;color:#3B6D11;border-color:#639922}
+.play-hdr{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.play-hdr h2{font-size:18px;font-weight:500;flex:1}
+.bingo-badge{background:#E1F5EE;color:#0F6E56;border-radius:20px;padding:4px 14px;font-size:14px;font-weight:500}
+.reach-banner{display:none;text-align:center;margin-bottom:12px;padding:10px 16px;background:#FAEEDA;border:0.5px solid #FAC775;border-radius:10px;color:#633806;font-size:14px;font-weight:500}
+.reach-banner.show{display:block}
+.bingo-grid{display:grid;gap:6px;margin:0 auto}
+.bingo-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;background:#fff;border:0.5px solid #e0e0e0;border-radius:8px;font-size:12px;text-align:center;cursor:pointer;padding:6px;line-height:1.3;transition:all 0.15s;word-break:break-all;user-select:none}
+.bingo-cell:hover:not(.free):not(.bingo-line){background:#f5f5f3;border-color:#999}
+.bingo-cell.hit{background:#1D9E75;color:#fff;border-color:#1D9E75;font-weight:500}
+.bingo-cell.free{background:#E1F5EE;color:#0F6E56;font-weight:500;cursor:default}.bingo-cell.bingo-line{background:#0F6E56;color:#fff;border-color:#0F6E56}
+.bingo-cell.reach{background:#FAEEDA;border:2px solid #EF9F27;color:#633806;font-weight:500}
+.bingo-cell.reach.hit{background:#BA7517;border:2px solid #EF9F27;color:#fff;font-weight:500}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:100;align-items:center;justify-content:center}
+.overlay.show{display:flex}
+.modal{background:#fff;border-radius:16px;padding:36px 28px;text-align:center;max-width:300px;width:90%}
+.modal h2{font-size:26px;font-weight:500;color:#1D9E75;margin-bottom:6px}
+.modal p{color:#666;font-size:14px;margin-bottom:20px}
+</style>
+</head>
+<body>
+<div class="app">
+
+<div class="screen active" id="s1">
+  <div class="hdr"><h1>カスタム備後</h1><p>ビンゴカードを作成しよう</p></div>
+  <div id="steps1"></div>
+  <div class="card">
+    <label>マスのサイズ</label>
+    <div class="size-opts">
+      <button class="size-btn" data-size="3">3×3</button>
+      <button class="size-btn active" data-size="4">4×4</button>
+      <button class="size-btn" data-size="5">5×5</button>
+    </div>
+  </div>
+  <div class="card" id="free-card">
+    <label>中央のマスの設定</label>
+    <div class="toggle-row">
+      <label class="toggle"><input type="checkbox" id="free-toggle" checked><span class="slider"></span></label>
+      <span class="toggle-label" id="free-label">中央を FREE にする</span>
+    </div>
+  </div>
+  <button class="btn-primary" id="to-s2">次へ：マスの内容を入力 →</button>
+</div>
+
+<div class="screen" id="s2">
+  <div class="hdr"><h1>マスの内容</h1><p>各マスに表示するテキストを入力してください</p></div>
+  <div id="steps2"></div>
+  <div class="card">
+    <label>テキストを入力</label>
+    <div class="input-list" id="input-list"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" id="s2-back">← 戻る</button>
+    <button class="btn-primary" id="to-s3">次へ：配置優先度を設定 →</button>
+  </div>
+</div>
+
+<div class="screen" id="s3">
+  <div class="hdr"><h1>配置優先度</h1><p>各マスをどの位置に置きたいか設定します</p></div>
+  <div id="steps3"></div>
+  <div class="diff-legend" id="diff-legend"></div>
+  <div class="card" style="padding:14px">
+    <div class="diff-list" id="diff-list"></div>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" id="s3-back">← 戻る</button>
+    <button class="btn-primary" id="to-s4">次へ：自動配置 →</button>
+  </div>
+</div>
+
+<div class="screen" id="s4">
+  <div class="hdr"><h1>自動配置</h1><p>優先度をもとに配置を提案します</p></div>
+  <div id="steps4"></div>
+  <div class="strategy-opts">
+    <button class="strategy-btn active" data-strategy="priority">優先度どおり<span>設定した位置に配置</span></button>
+    <button class="strategy-btn" data-strategy="balanced">バランス型<span>均等に分散配置</span></button>
+  </div>
+  <p class="auto-hint" id="auto-hint"></p>
+  <div class="auto-result-grid" id="auto-grid"></div>
+  <button class="reshuffle-btn" id="reshuffle-btn">もう一度シャッフル</button>
+  <div class="btn-row" style="margin-top:0">
+    <button class="btn-secondary" id="s4-back">← 戻る</button>
+    <button class="btn-primary" id="to-s5">次へ：手動調整 →</button>
+  </div>
+</div>
+
+<div class="screen" id="s5">
+  <div class="hdr"><h1>配置を調整</h1><p>ドラッグ＆ドロップで微調整できます</p></div>
+  <div id="steps5"></div>
+  <p class="auto-hint">ドラッグで入れ替え</p>
+  <div class="arrange-grid" id="arrange-grid"></div>
+  <div class="btn-row">
+    <button class="btn-secondary" id="s5-back">← 戻る</button>
+    <button class="btn-primary" id="to-s6">次へ：共有 →</button>
+  </div>
+</div>
+
+<div class="screen" id="s6">
+  <div class="hdr"><h1>カード完成!</h1><p>URLをコピーして友達に共有しよう</p></div>
+  <div id="steps6"></div>
+  <div class="card">
+    <label>共有URL</label>
+    <div class="url-box" id="share-url"></div>
+    <button class="copy-btn" id="copy-btn">URLをコピー</button>
+    <p style="font-size:12px;color:#888;text-align:center;margin-bottom:4px">友達はURLを開くだけですぐプレイできます</p>
+  </div>
+  <div class="btn-row">
+    <button class="btn-secondary" id="s6-back">← 配置を変更</button>
+    <button class="btn-primary" id="to-play">プレイ開始 →</button>
+  </div>
+</div>
+
+<div class="screen" id="s-play">
+  <div class="play-hdr">
+    <button class="btn-secondary" id="play-reset">← 最初から</button>
+    <h2>ビンゴ!</h2>
+    <div class="bingo-badge"><span id="bingo-count">0</span> ライン</div>
+  </div>
+  <div class="reach-banner" id="reach-banner"></div>
+  <div class="bingo-grid" id="bingo-grid"></div>
+</div>
+
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <h2>BINGO!</h2>
+    <p id="modal-msg"></p>
+    <button class="btn-primary" id="modal-cont" style="margin-bottom:8px">続けてプレイ</button>
+    <button class="btn-secondary" style="width:100%" id="modal-new">新しいカードを作る</button>
+  </div>
+</div>
+
+<script>
+let size = 4, useFree = true;
+let cells = [];
+let arranged = []; // [{text, diff}]
+let strategy = 'priority';
+let dragSrcIdx = null, lastBingoCount = 0, hits = [];
+
+const $ = id => document.getElementById(id);
+
+const STEP_LABELS = ['サイズ','内容入力','優先度','自動配置','手動調整','共有'];
+function renderSteps(cur, el) {
+  el.innerHTML = '<div class="steps">' + STEP_LABELS.map((l,i) => {
+    const cls = i+1 < cur ? 'step done' : i+1 === cur ? 'step active' : 'step';
+    const dot = i+1 < cur ? '✓' : String(i+1);
+    return (i>0?'<div class="step-line"></div>':'')+
+      '<div class="'+cls+'"><div class="step-dot">'+dot+'</div>'+l+'</div>';
+  }).join('') + '</div>';
+}
+[1,2,3,4,5,6].forEach(n => renderSteps(n, $('steps'+n)));
+
+function posKind(idx) {
+  const r = Math.floor(idx/size), c = idx%size, mid = Math.floor(size/2);
+  if (size%2===1 && r===mid && c===mid) return 'center';
+  if (r===c || r+c===size-1) return 'diagonal';
+  return 'other';
+}
+
+function lineCount(idx) {
+  const r = Math.floor(idx/size), c = idx%size;
+  let n = 2;
+  if (r===c) n++;
+  if (r+c===size-1) n++;
+  return n;
+}
+
+function updateSize(s) {
+  size = s;
+  document.querySelectorAll('.size-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.size)===s));
+  $('free-card').style.display = s%2===1 ? '' : 'none';
+}
+document.querySelectorAll('.size-btn').forEach(b => b.addEventListener('click', () => updateSize(parseInt(b.dataset.size))));
+updateSize(4);
+
+$('free-toggle').addEventListener('change', () => {
+  useFree = $('free-toggle').checked;
+  $('free-label').textContent = useFree ? '中央を FREE にする' : '中央も自分で入力する';
+});
+
+$('to-s2').addEventListener('click', () => {
+  const total = size*size, freeIdx = Math.floor(total/2);
+  const isFreeOdd = size%2===1 && useFree;
+  const existing = cells.slice();
+  $('input-list').innerHTML = '';
+  let num = 1;
+  for (let i = 0; i < total; i++) {
+    const row = document.createElement('div');
+    row.className = 'input-row';
+    if (isFreeOdd && i===freeIdx) {
+      row.innerHTML = '<span class="input-num">'+num+'</span><input class="cell-input free-cell" value="FREE" readonly>';
+      num++;
+    } else {
+      const val = existing[i] ? existing[i].text : '';
+      const safeVal = val.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      row.innerHTML = '<span class="input-num">'+num+'</span><input class="cell-input" type="text" maxlength="30" placeholder="マス '+num+'" value="'+safeVal+'">';
+      num++;
+    }
+    $('input-list').appendChild(row);
+  }
+  show('s2');
+});
+$('s2-back').addEventListener('click', () => show('s1'));
+
+$('to-s3').addEventListener('click', () => {
+  const total = size*size, freeIdx = Math.floor(total/2);
+  const isFreeOdd = size%2===1 && useFree;
+  const inputs = $('input-list').querySelectorAll('input');
+  cells = Array.from(inputs).map((inp, i) => {
+    const text = inp.value.trim() || inp.placeholder;
+    const prev = cells[i];
+    let diff = (prev && prev.text === text) ? prev.diff : 'other';
+    if (isFreeOdd && diff === 'center') diff = 'other';
+    return { text, diff, isFree: isFreeOdd && i===freeIdx };
+  });
+  renderDiffList();
+  show('s3');
+});
+$('s3-back').addEventListener('click', () => show('s2'));
+
+function renderDiffList() {
+  const hasFreeCenter = size%2===1 && useFree;
+  const legendDefs = [
+    {color:'#639922', label:'斜め（ビンゴしやすい）'},
+    ...(hasFreeCenter ? [] : [{color:'#534AB7', label:'真ん中（最もビンゴしやすい）'}]),
+    {color:'#E24B4A', label:'それ以外'},
+  ];
+  $('diff-legend').innerHTML = legendDefs.map(d =>
+    '<div class="legend-item"><div class="legend-dot" style="background:'+d.color+'"></div>'+d.label+'</div>'
+  ).join('');
+
+  const opts = [
+    {key:'diagonal', label:'斜め'},
+    ...(hasFreeCenter ? [] : [{key:'center', label:'真ん中'}]),
+    {key:'other', label:'それ以外'},
+  ];
+
+  $('diff-list').innerHTML = '';
+  cells.forEach((cell, i) => {
+    if (cell.isFree) return;
+    if (hasFreeCenter && cells[i].diff==='center') cells[i].diff='other';
+    const row = document.createElement('div');
+    row.className = 'diff-row';
+    const btns = opts.map(o =>
+      '<button class="diff-btn '+o.key+(cells[i].diff===o.key?' active':'')+'" data-idx="'+i+'" data-diff="'+o.key+'">'+o.label+'</button>'
+    ).join('');
+    row.innerHTML = '<span class="diff-label" title="'+cell.text+'">'+cell.text+'</span><div class="diff-btns">'+btns+'</div>';
+    $('diff-list').appendChild(row);
+  });
+
+  $('diff-list').querySelectorAll('.diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.idx);
+      cells[idx].diff = btn.dataset.diff;
+      $('diff-list').querySelectorAll('.diff-btn[data-idx="'+idx+'"]').forEach(b =>
+        b.classList.toggle('active', b.dataset.diff===btn.dataset.diff)
+      );
+    });
+  });
+}
+
+$('to-s4').addEventListener('click', () => { autoArrange(); show('s4'); });
+$('s4-back').addEventListener('click', () => show('s3'));
+
+document.querySelectorAll('.strategy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.strategy-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    strategy = btn.dataset.strategy;
+    autoArrange();
+  });
+});
+$('reshuffle-btn').addEventListener('click', autoArrange);
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}
+  return a;
+}
+
+function autoArrange() {
+  const total = size*size;
+  const hasFreeCenter = size%2===1 && useFree;
+  const freeIdx = hasFreeCenter ? Math.floor(total/2) : -1;
+
+  const posByKind = {center:[], diagonal:[], other:[]};
+  for (let i=0;i<total;i++) {
+    if (i===freeIdx) continue;
+    posByKind[posKind(i)].push(i);
+  }
+  const sortPos = arr => shuffle(arr).sort((a,b) => lineCount(b)-lineCount(a));
+  const centerPos  = sortPos(posByKind.center);
+  const diagPos    = sortPos(posByKind.diagonal);
+  const otherPos   = sortPos(posByKind.other);
+
+  const nonFree = cells.filter(c=>!c.isFree);
+  const diagCells   = shuffle(nonFree.filter(c=>c.diff==='diagonal'));
+  const centerCells = shuffle(nonFree.filter(c=>c.diff==='center'));
+  const otherCells  = shuffle(nonFree.filter(c=>c.diff==='other'));
+
+  const result = new Array(total).fill(null);
+  if (freeIdx>=0) result[freeIdx] = {text:'FREE', diff:'free', isFree:true};
+
+  if (strategy==='priority') {
+    const assign = (posList, cellList) => {
+      const leftover=[], unusedPos=[];
+      cellList.forEach((cell,i) => { if(i<posList.length) result[posList[i]]=cell; else leftover.push(cell); });
+      posList.slice(cellList.length).forEach(p => unusedPos.push(p));
+      return {leftover, unusedPos};
+    };
+    const cR=assign(centerPos,centerCells);
+    const dR=assign(diagPos,diagCells);
+    const oR=assign(otherPos,otherCells);
+    const leftover=shuffle(cR.leftover.concat(dR.leftover).concat(oR.leftover));
+    const unused=shuffle(cR.unusedPos.concat(dR.unusedPos).concat(oR.unusedPos));
+    leftover.forEach((cell,i) => { if(unused[i]!=null) result[unused[i]]=cell; });
+  } else {
+    const allPos=[].concat(centerPos,diagPos,otherPos);
+    const allCells=interleave(diagCells,centerCells,otherCells,allPos.length);
+    allPos.forEach((pos,i)=>{ result[pos]=allCells[i]||{text:'',diff:'other'}; });
+  }
+
+  arranged = result.map(c => c ? {text:c.text, diff:c.isFree?'free':c.diff} : {text:'',diff:'other'});
+  renderAutoGrid(result);
+
+  const parts=[];
+  if(diagCells.length)  parts.push('斜め '+diagCells.length+'個');
+  if(centerCells.length)parts.push('真ん中 '+centerCells.length+'個');
+  if(otherCells.length) parts.push('それ以外 '+otherCells.length+'個');
+  $('auto-hint').textContent = parts.length ? parts.join('・')+' を配置' : '';
+}
+
+function interleave(a,b,c,total) {
+  const res=[];let ai=0,bi=0,ci=0;
+  for(let i=0;i<total;i++){
+    if(i%3===0&&ai<a.length) res.push(a[ai++]);
+    else if(i%3===1&&bi<b.length) res.push(b[bi++]);
+    else if(i%3===2&&ci<c.length) res.push(c[ci++]);
+    else if(ai<a.length) res.push(a[ai++]);
+    else if(bi<b.length) res.push(b[bi++]);
+    else if(ci<c.length) res.push(c[ci++]);
+  }
+  return res;
+}
+
+function renderAutoGrid(result) {
+  const grid=$('auto-grid');
+  const cs=Math.floor((520-(size-1)*6)/size);
+  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
+  grid.style.width='fit-content';grid.style.margin='0 auto';
+  grid.innerHTML='';
+  result.forEach(cell => {
+    const el=document.createElement('div');
+    el.className='auto-cell '+(cell?(cell.isFree?'free':cell.diff):'unset');
+    el.style.width=cs+'px';el.style.fontSize=cs<80?'10px':'12px';
+    el.textContent=cell?cell.text:'';
+    grid.appendChild(el);
+  });
+}
+
+$('to-s5').addEventListener('click', () => { renderManualArrange(); show('s5'); });
+$('s5-back').addEventListener('click', () => show('s4'));
+
+function renderManualArrange() {
+  const grid=$('arrange-grid');
+  const cs=Math.floor((520-(size-1)*6)/size);
+  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
+  grid.style.width='fit-content';grid.style.margin='0 auto';grid.innerHTML='';
+  const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
+
+  arranged.forEach((item,i) => {
+    const isFree=i===freeIdx;
+    const cell=document.createElement('div');
+    cell.className='arrange-cell'+(isFree?' free':' diff-'+item.diff);
+    cell.style.width=cs+'px';cell.style.fontSize=cs<80?'10px':'12px';
+    cell.textContent=item.text;cell.dataset.idx=String(i);
+    if (!isFree) {
+      const icon=document.createElement('span');
+      icon.className='drag-icon';icon.textContent='⠿';cell.appendChild(icon);
+      cell.draggable=true;
+      cell.addEventListener('dragstart',e=>{dragSrcIdx=i;cell.classList.add('dragging');e.dataTransfer.effectAllowed='move';});
+      cell.addEventListener('dragend',()=>{
+        cell.classList.remove('dragging');
+        document.querySelectorAll('.arrange-cell').forEach(c=>c.classList.remove('drag-over'));
+      });
+      cell.addEventListener('dragover',e=>{
+        e.preventDefault();
+        if(parseInt(cell.dataset.idx)===freeIdx) return;
+        document.querySelectorAll('.arrange-cell').forEach(c=>c.classList.remove('drag-over'));
+        cell.classList.add('drag-over');
+      });
+      cell.addEventListener('drop',e=>{
+        e.preventDefault();
+        const dest=parseInt(cell.dataset.idx);
+        if(dragSrcIdx===dest||dest===freeIdx) return;
+        const tmp=arranged[dragSrcIdx];arranged[dragSrcIdx]=arranged[dest];arranged[dest]=tmp;
+        renderManualArrange();
+      });
+    }
+    grid.appendChild(cell);
+  });
+}
+
+$('to-s6').addEventListener('click', () => {
+  const data={s:size,c:arranged,f:useFree?1:0};
+  $('share-url').textContent=location.href.split('?')[0]+'?b='+encodeURIComponent(JSON.stringify(data));
+  show('s6');
+});
+$('s6-back').addEventListener('click', () => show('s5'));
+
+$('copy-btn').addEventListener('click', () => {
+  navigator.clipboard.writeText($('share-url').textContent).then(() => {
+    const btn=$('copy-btn');btn.textContent='コピーしました!';btn.classList.add('copied');
+    setTimeout(()=>{btn.textContent='URLをコピー';btn.classList.remove('copied');},2000);
+  });
+});
+
+$('to-play').addEventListener('click', startPlay);
+$('play-reset').addEventListener('click', () => show('s1'));
+
+function startPlay() {
+  hits=new Array(size*size).fill(false);
+  const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
+  if(freeIdx>=0) hits[freeIdx]=true;
+  lastBingoCount=0;
+  $('bingo-count').textContent='0';
+  $('reach-banner').classList.remove('show');
+  renderPlay();
+  show('s-play');
+}
+
+function getAllLines() {
+  const lines=[];
+  for(let r=0;r<size;r++){const row=[];for(let c=0;c<size;c++)row.push(r*size+c);lines.push(row);}
+  for(let c=0;c<size;c++){const col=[];for(let r=0;r<size;r++)col.push(r*size+c);lines.push(col);}
+  const d1=[],d2=[];
+  for(let i=0;i<size;i++){d1.push(i*size+i);d2.push(i*size+(size-1-i));}
+  lines.push(d1);lines.push(d2);
+  return lines;
+}
+
+function getBingoLines() {
+  return getAllLines().filter(l=>l.every(i=>hits[i]));
+}
+
+function getReachLines() {
+  const bingoKeys=new Set(getBingoLines().map(l=>l.join(',')));
+  return getAllLines().filter(l=>{
+    if(bingoKeys.has(l.join(','))) return false;
+    return l.filter(i=>!hits[i]).length===1;
+  });
+}
+
+function renderPlay() {
+  const grid=$('bingo-grid');
+  const cs=Math.floor((520-(size-1)*6)/size);
+  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
+  grid.style.width='fit-content';grid.style.margin='0 auto';grid.innerHTML='';
+
+  const bingoLines=getBingoLines();
+  const winSet=new Set();bingoLines.forEach(l=>l.forEach(i=>winSet.add(i)));
+
+  const reachLines=getReachLines();
+  const reachMissing=new Set(reachLines.map(l=>l.find(i=>!hits[i])));
+
+  const banner=$('reach-banner');
+  if(reachLines.length>0 && bingoLines.length===0){
+    banner.textContent='リーチ！あと1マスでビンゴ × '+reachLines.length;
+    banner.classList.add('show');
+  } else if(reachLines.length>0){
+    banner.textContent='リーチ × '+reachLines.length;
+    banner.classList.add('show');
+  } else {
+    banner.classList.remove('show');
+  }
+
+  const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
+
+  arranged.forEach((item,i) => {
+    const text=typeof item==='string'?item:item.text;
+    const cell=document.createElement('div');
+    cell.className='bingo-cell';
+    cell.style.width=cs+'px';cell.style.fontSize=cs<80?'11px':'13px';
+    cell.textContent=text;
+    if(i===freeIdx){
+      cell.classList.add('free');
+    } else {
+      if(hits[i]&&winSet.has(i)) cell.classList.add('bingo-line');
+      else if(hits[i]) cell.classList.add('hit');
+      else if(reachMissing.has(i)) cell.classList.add('reach');
+      cell.addEventListener('click',()=>toggleCell(i));
+    }
+    grid.appendChild(cell);
+  });
+}
+
+function toggleCell(i) {
+  hits[i]=!hits[i];
+  const bingoLines=getBingoLines();
+  const count=bingoLines.length;
+  $('bingo-count').textContent=String(count);
+  renderPlay();
+  if(count>lastBingoCount){
+    lastBingoCount=count;
+    $('modal-msg').textContent=count+' ライン達成！おめでとうございます！';
+    $('overlay').classList.add('show');
+  }
+}
+
+$('modal-cont').addEventListener('click',()=>$('overlay').classList.remove('show'));
+$('modal-new').addEventListener('click',()=>{$('overlay').classList.remove('show');show('s1');});
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  $(id).classList.add('active');
+}
+
+function loadFromUrl(){
+  const b=new URLSearchParams(location.search).get('b');
+  if(b){
+    try{
+      const d=JSON.parse(decodeURIComponent(b));
+      size=d.s;useFree=d.f===1;
+      arranged=d.c.map(c=>typeof c==='string'?{text:c,diff:'other'}:c);
+      startPlay();return;
+    }catch(e){}
+  }
+  updateSize(4);
+}
+loadFromUrl();
+</script>
+</body>
+</html>
