@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;color:#1a1a1a;font-size:15px}
+body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;color:#1a1a1a;font-size:15px;overflow-x:hidden}
 .app{max-width:680px;margin:0 auto;padding:20px 16px 40px}
 .screen{display:none}.screen.active{display:block}
 .hdr{text-align:center;padding:28px 0 20px}
@@ -123,6 +123,13 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 .saved-item-del{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#aaa;font-size:12px;cursor:pointer;flex-shrink:0}
 .saved-item-del:hover{border-color:#EF9F27;color:#633806;background:#FAEEDA}
 .empty-msg{text-align:center;color:#aaa;font-size:14px;padding:24px 0}
+@media(max-width:400px){
+  .diff-btn{padding:3px 7px;font-size:11px}
+  .play-hdr{gap:6px}
+  .play-hdr h2{font-size:15px}
+  .bingo-badge{padding:3px 10px;font-size:12px}
+  .btn-secondary{padding:9px 12px;font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -641,15 +648,15 @@ function interleave(a,b,c,total){
   return res;
 }
 
+function gridCS(){return Math.floor((Math.min(520,window.innerWidth-32)-(size-1)*6)/size);}
 function renderAutoGrid(result){
-  const grid=$('auto-grid');
-  const cs=Math.floor((520-(size-1)*6)/size);
-  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
-  grid.style.width='fit-content';grid.style.margin='0 auto';grid.innerHTML='';
+  const grid=$('auto-grid');const cs=gridCS();
+  grid.style.gridTemplateColumns='repeat('+size+',1fr)';
+  grid.style.width='100%';grid.style.margin='0 auto';grid.innerHTML='';
   result.forEach(cell=>{
     const el=document.createElement('div');
     el.className='auto-cell '+(cell?(cell.isFree?'free':cell.diff):'unset');
-    el.style.width=cs+'px';el.style.fontSize=cs<80?'10px':'12px';
+    el.style.fontSize=cs<60?'9px':cs<80?'10px':'12px';
     el.textContent=cell?cell.text:'';
     grid.appendChild(el);
   });
@@ -660,16 +667,15 @@ $('to-s5').addEventListener('click',()=>{renderManualArrange();show('s5');});
 $('s5-back').addEventListener('click',()=>show('s4'));
 
 function renderManualArrange(){
-  const grid=$('arrange-grid');
-  const cs=Math.floor((520-(size-1)*6)/size);
-  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
-  grid.style.width='fit-content';grid.style.margin='0 auto';grid.innerHTML='';
+  const grid=$('arrange-grid');const cs=gridCS();
+  grid.style.gridTemplateColumns='repeat('+size+',1fr)';
+  grid.style.width='100%';grid.style.margin='0 auto';grid.innerHTML='';
   const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
   arranged.forEach((item,i)=>{
     const isFree=i===freeIdx;
     const cell=document.createElement('div');
     cell.className='arrange-cell'+(isFree?' free':' diff-'+item.diff);
-    cell.style.width=cs+'px';cell.style.fontSize=cs<80?'10px':'12px';
+    cell.style.fontSize=cs<60?'9px':cs<80?'10px':'12px';
     cell.textContent=item.text;cell.dataset.idx=String(i);
     if(!isFree){
       const icon=document.createElement('span');
@@ -738,10 +744,9 @@ function getReachLines(){
 }
 
 function renderPlay(){
-  const grid=$('bingo-grid');
-  const cs=Math.floor((520-(size-1)*6)/size);
-  grid.style.gridTemplateColumns='repeat('+size+','+cs+'px)';
-  grid.style.width='fit-content';grid.style.margin='0 auto';grid.innerHTML='';
+  const grid=$('bingo-grid');const cs=gridCS();
+  grid.style.gridTemplateColumns='repeat('+size+',1fr)';
+  grid.style.width='100%';grid.style.margin='0 auto';grid.innerHTML='';
   const bingoLines=getBingoLines();
   const winSet=new Set();bingoLines.forEach(l=>l.forEach(i=>winSet.add(i)));
   const reachLines=getReachLines();
@@ -758,7 +763,7 @@ function renderPlay(){
     const text=typeof item==='string'?item:item.text;
     const cell=document.createElement('div');
     cell.className='bingo-cell';
-    cell.style.width=cs+'px';cell.style.fontSize=cs<80?'11px':'13px';
+    cell.style.fontSize=cs<60?'9px':cs<80?'11px':'13px';
     cell.textContent=text;
     if(i===freeIdx){cell.classList.add('free');}
     else{
