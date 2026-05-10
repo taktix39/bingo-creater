@@ -123,6 +123,7 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 .saved-item-del{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#aaa;font-size:12px;cursor:pointer;flex-shrink:0}
 .saved-item-del:hover{border-color:#EF9F27;color:#633806;background:#FAEEDA}
 .empty-msg{text-align:center;color:#aaa;font-size:14px;padding:24px 0}
+.sync-key-disp{flex:1;padding:10px 12px;border:0.5px solid #e0e0e0;border-radius:8px;font-size:18px;font-weight:700;letter-spacing:3px;background:#f9f9f7;color:#1D9E75;text-align:center}
 @media(max-width:400px){
   .diff-btn{padding:3px 7px;font-size:11px}
   .play-hdr{gap:6px}
@@ -142,6 +143,19 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
   <div class="card">
     <label>保存済みカード</label>
     <div class="saved-list" id="saved-list"></div>
+  </div>
+  <div class="card">
+    <label>マイコード <span style="font-size:11px;color:#aaa;font-weight:400">（端末間で同期）</span></label>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <div class="sync-key-disp" id="sync-key-disp"></div>
+      <button class="btn-secondary" id="copy-sync-btn" style="white-space:nowrap;flex-shrink:0">コピー</button>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:10px">このコードを他の端末で入力するとカードを同期できます</p>
+    <div style="display:flex;gap:8px">
+      <input class="save-input" id="sync-input" type="text" placeholder="他の端末のコードを入力" maxlength="8" style="flex:1;font-size:14px">
+      <button class="save-btn" id="sync-btn">同期</button>
+    </div>
+    <p class="save-msg" id="sync-msg"></p>
   </div>
 </div>
 
@@ -320,35 +334,64 @@ function saveSaved(list){
   try{localStorage.setItem(STORE_KEY,JSON.stringify(list));}catch(e){}
 }
 
-async function renderSavedList(){
+// ---- SYNC KEY ----
+const SYNC_CHARS='abcdefghjkmnpqrstuvwxyz23456789';
+function genSyncKey(){let k='';for(let i=0;i<8;i++)k+=SYNC_CHARS[Math.floor(Math.random()*SYNC_CHARS.length)];return k;}
+let syncKey=localStorage.getItem('bingo-sync-key')||(()=>{const k=genSyncKey();localStorage.setItem('bingo-sync-key',k);return k;})();
+
+async function saveCardToSupabase(card){
+  try{
+    const payload={sync_key:syncKey,name:card.name,size:card.size,use_free:card.useFree,
+      cells:card.cells,arranged:card.arranged,date:card.date,updated_at:new Date().toISOString()};
+    if(card.sbId) payload.id=card.sbId;
+    const{data,error}=await sb.from('bingo_cards').upsert(payload).select('id').single();
+    if(error){console.error('[bingo] card save error:',error);return null;}
+    return data?.id||null;
+  }catch(e){console.error('[bingo] card save error:',e);return null;}
+}
+async function deleteCardFromSupabase(sbId){
+  if(!sbId)return;
+  try{await sb.from('bingo_cards').delete().eq('id',sbId).eq('sync_key',syncKey);}catch(e){}
+}
+async function syncFromSupabase(key){
+  try{
+    const{data,error}=await sb.from('bingo_cards').select('*').eq('sync_key',key).order('updated_at',{ascending:false});
+    if(error||!data?.length)return false;
+    const remote=data.map(r=>({sbId:r.id,name:r.name,size:r.size,useFree:r.use_free,cells:r.cells,arranged:r.arranged,date:r.date}));
+    const local=loadSaved().filter(c=>!c.sbId); // keep local-only cards
+    saveSaved([...remote,...local]);
+    return true;
+  }catch(e){console.error('[bingo] sync error:',e);return false;}
+}
+
+function renderSavedList(){
+  $('sync-key-disp').textContent=syncKey;
   const list=loadSaved();
   const el=$('saved-list');
-  if(!list.length){el.innerHTML='<div class="empty-msg">保存済みカードはありません</div>';return;}
-  el.innerHTML='';
-  list.forEach((item,i)=>{
-    const row=document.createElement('div');
-    row.className='saved-item';
-    row.innerHTML=
-      '<div class="saved-item-info">'+
-        '<div class="saved-item-name">'+escHtml(item.name)+'</div>'+
-        '<div class="saved-item-meta">'+item.size+'×'+item.size+' / '+item.date+'</div>'+
-      '</div>'+
-      '<button class="saved-item-del" data-i="'+i+'">削除</button>';
-    // load on row click (not delete btn)
-    row.addEventListener('click',e=>{
-      if(e.target.classList.contains('saved-item-del')) return;
-      loadCard(item);
+  if(!list.length){el.innerHTML='<div class="empty-msg">保存済みカードはありません</div>';}
+  else{
+    el.innerHTML='';
+    list.forEach((item,i)=>{
+      const row=document.createElement('div');
+      row.className='saved-item';
+      row.innerHTML=
+        '<div class="saved-item-info">'+
+          '<div class="saved-item-name">'+escHtml(item.name)+'</div>'+
+          '<div class="saved-item-meta">'+item.size+'×'+item.size+' / '+item.date+'</div>'+
+        '</div>'+
+        '<button class="saved-item-del" data-i="'+i+'">削除</button>';
+      row.addEventListener('click',e=>{if(e.target.classList.contains('saved-item-del'))return;loadCard(item);});
+      row.querySelector('.saved-item-del').addEventListener('click',e=>{
+        e.stopPropagation();
+        if(!confirm('"'+item.name+'" を削除しますか？'))return;
+        deleteCardFromSupabase(item.sbId);
+        const l=loadSaved();l.splice(i,1);saveSaved(l);renderSavedList();
+      });
+      el.appendChild(row);
     });
-    row.querySelector('.saved-item-del').addEventListener('click',async e=>{
-      e.stopPropagation();
-      if(!confirm('"'+item.name+'" を削除しますか？')) return;
-      const l=loadSaved();
-      l.splice(i,1);
-      saveSaved(l);
-      renderSavedList();
-    });
-    el.appendChild(row);
-  });
+  }
+  // バックグラウンドで自動同期
+  syncFromSupabase(syncKey).then(ok=>{if(ok)renderSavedList();});
 }
 
 function loadCard(item){
@@ -368,10 +411,13 @@ function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(
 $('save-btn').addEventListener('click',async()=>{
   const name=$('save-name').value.trim();
   if(!name){$('save-msg').textContent='名前を入力してください';return;}
-  const list=loadSaved();
   const now=new Date();
   const date=now.getFullYear()+'/'+(now.getMonth()+1)+'/'+(now.getDate());
-  list.unshift({name,size,useFree,cells,arranged,date});
+  const card={name,size,useFree,cells,arranged,date};
+  const sbId=await saveCardToSupabase(card);
+  if(sbId)card.sbId=sbId;
+  const list=loadSaved();
+  list.unshift(card);
   saveSaved(list);
   $('save-msg').textContent='「'+name+'」を保存しました！';
   $('save-name').value='';
@@ -793,6 +839,24 @@ function toggleCell(i){
 
 $('modal-cont').addEventListener('click',()=>$('overlay').classList.remove('show'));
 $('modal-new').addEventListener('click',()=>{$('overlay').classList.remove('show');renderSavedList();show('s0');});
+$('copy-sync-btn').addEventListener('click',()=>{
+  navigator.clipboard.writeText(syncKey).then(()=>{
+    $('copy-sync-btn').textContent='コピー済み';
+    setTimeout(()=>$('copy-sync-btn').textContent='コピー',2000);
+  });
+});
+$('sync-btn').addEventListener('click',async()=>{
+  const key=$('sync-input').value.trim().toLowerCase();
+  if(key.length!==8){$('sync-msg').textContent='8文字のコードを入力してください';return;}
+  $('sync-msg').textContent='同期中...';
+  const ok=await syncFromSupabase(key);
+  if(ok){
+    syncKey=key;localStorage.setItem('bingo-sync-key',key);
+    $('sync-key-disp').textContent=syncKey;$('sync-input').value='';
+    $('sync-msg').textContent='同期しました！';renderSavedList();
+  }else{$('sync-msg').textContent='カードが見つかりませんでした';}
+  setTimeout(()=>$('sync-msg').textContent='',3000);
+});
 $('name-submit').addEventListener('click',()=>{
   const name=$('name-input').value.trim();if(!name)return;
   myPlayerName=name;localStorage.setItem('bingo-player-name',name);
