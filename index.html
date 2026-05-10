@@ -279,7 +279,7 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
   </div>
   <div class="reach-banner" id="reach-banner"></div>
   <div class="bingo-grid" id="bingo-grid"></div>
-  <div id="other-players" style="margin-top:16px"></div>
+  <div id="other-players" style="margin-top:8px"></div>
 </div>
 </div>
 
@@ -552,20 +552,42 @@ async function setupRealtime(cardId){
 function renderOtherPlayers(){
   const el=$('other-players');
   const freeIdx=size%2===1&&useFree?Math.floor(size*size/2):-1;
-  const sessions=Object.values(otherSessions).filter(s=>Date.now()-new Date(s.updated_at).getTime()<30*60*1000);
+  const sessions=Object.values(otherSessions)
+    .filter(s=>Date.now()-new Date(s.updated_at).getTime()<30*60*1000)
+    .sort((a,b)=>b.bingo_count-a.bingo_count);
   if(!sessions.length){el.innerHTML='';return;}
-  el.innerHTML='<p style="font-size:13px;color:#666;margin-bottom:8px;text-align:center">参加中のプレイヤー</p>'+
+  const dotSize=Math.min(14,Math.floor((Math.min(300,window.innerWidth-80)-sessions.length*2)/size));
+  el.innerHTML=
+    '<div style="border-top:0.5px solid #e0e0e0;padding-top:14px;margin-top:8px">'+
+    '<p style="font-size:12px;color:#999;margin-bottom:10px;text-align:center;letter-spacing:.05em">━ 参加中のプレイヤー ━</p>'+
     sessions.map(s=>{
       const h=JSON.parse(s.hits||'[]');
-      const dots=arranged.map((_,i)=>'<div style="width:10px;height:10px;border-radius:2px;background:'+(i===freeIdx?'#9FE1CB':h[i]?'#1D9E75':'#e0e0e0')+'"></div>').join('');
+      const bingoLines=getBingoLinesForHits(h);
+      const dots=arranged.map((_,i)=>{
+        const inBingo=bingoLines.some(l=>l.includes(i));
+        const bg=i===freeIdx?'#9FE1CB':inBingo?'#0F6E56':h[i]?'#1D9E75':'#e0e0e0';
+        return '<div style="width:'+dotSize+'px;height:'+dotSize+'px;border-radius:2px;background:'+bg+'"></div>';
+      }).join('');
+      const updatedAgo=Math.floor((Date.now()-new Date(s.updated_at).getTime())/1000);
+      const agoText=updatedAgo<60?updatedAgo+'秒前':Math.floor(updatedAgo/60)+'分前';
       return '<div style="background:#fff;border:0.5px solid #e0e0e0;border-radius:10px;padding:10px 12px;margin-bottom:8px">'+
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'+
           '<span style="font-size:14px;font-weight:500;flex:1">'+escHtml(s.player_name)+'</span>'+
-          '<span style="background:#E1F5EE;color:#0F6E56;border-radius:12px;padding:2px 10px;font-size:12px">'+s.bingo_count+' ライン</span>'+
+          '<span style="font-size:11px;color:#bbb">'+agoText+'</span>'+
+          '<span style="background:'+(s.bingo_count>0?'#E1F5EE':'#f5f5f5')+';color:'+(s.bingo_count>0?'#0F6E56':'#999')+';border-radius:12px;padding:2px 10px;font-size:12px;font-weight:'+(s.bingo_count>0?'600':'400')+'">'+s.bingo_count+' ライン</span>'+
         '</div>'+
-        '<div style="display:grid;grid-template-columns:repeat('+size+',10px);gap:2px">'+dots+'</div>'+
+        '<div style="display:grid;grid-template-columns:repeat('+size+','+(dotSize)+'px);gap:3px;justify-content:start">'+dots+'</div>'+
       '</div>';
-    }).join('');
+    }).join('')+
+    '</div>';
+}
+function getBingoLinesForHits(h){
+  const lines=[];
+  for(let r=0;r<size;r++){const row=[];for(let c=0;c<size;c++)row.push(r*size+c);lines.push(row);}
+  for(let c=0;c<size;c++){const col=[];for(let r=0;r<size;r++)col.push(r*size+c);lines.push(col);}
+  const d1=[],d2=[];for(let i=0;i<size;i++){d1.push(i*size+i);d2.push(i*size+(size-1-i));}
+  lines.push(d1);lines.push(d2);
+  return lines.filter(l=>l.every(i=>h[i]));
 }
 
 // ---- SORT HELPER (mouse + touch) ----
