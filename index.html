@@ -966,7 +966,11 @@ $('copy-btn').addEventListener('click',()=>{
 });
 
 $('to-play').addEventListener('click',startPlay);
-$('play-reset').addEventListener('click',()=>{if(realtimeSub){sb.removeChannel(realtimeSub);realtimeSub=null;}renderSavedList();show('s0');});
+$('play-reset').addEventListener('click',()=>{
+  localStorage.removeItem('bingo-hits-'+getCardId());
+  if(realtimeSub){sb.removeChannel(realtimeSub);realtimeSub=null;}
+  renderSavedList();show('s0');
+});
 
 // ---- PLAY ----
 function startPlay(){
@@ -974,14 +978,20 @@ function startPlay(){
   _doStartPlay();
 }
 async function _doStartPlay(){
-  hits=new Array(size*size).fill(false);
   const freeIdx=size%2===1&&useFree?Math.floor((size*size)/2):-1;
+  const cardId=getCardId();
+  const savedHits=localStorage.getItem('bingo-hits-'+cardId);
+  if(savedHits){
+    try{hits=JSON.parse(savedHits);}catch(e){hits=new Array(size*size).fill(false);}
+  }else{
+    hits=new Array(size*size).fill(false);
+  }
   if(freeIdx>=0)hits[freeIdx]=true;
-  lastBingoCount=0;$('bingo-count').textContent='0';
+  lastBingoCount=getBingoLines().length;
+  $('bingo-count').textContent=String(lastBingoCount);
   $('reach-banner').classList.remove('show');
   $('other-players').innerHTML='';
   renderPlay();show('s-play');
-  const cardId=getCardId();
   mySessionId=getMySessionId(cardId);
   upsertSession();
   setupRealtime(cardId);
@@ -1041,6 +1051,7 @@ function updatePlayState(){
 
 function toggleCell(i){
   hits[i]=!hits[i];
+  localStorage.setItem('bingo-hits-'+getCardId(),JSON.stringify(hits));
   const bingoLines=getBingoLines(),count=bingoLines.length;
   $('bingo-count').textContent=String(count);updatePlayState();
   upsertSession();
