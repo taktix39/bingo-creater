@@ -126,6 +126,8 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
 .saved-item-copy:hover{border-color:#1D9E75;background:#E1F5EE}
 .saved-item-edit{padding:4px 10px;border:0.5px solid #e0e0e0;border-radius:6px;background:#fff;color:#555;font-size:12px;cursor:pointer;flex-shrink:0}
 .saved-item-edit:hover{border-color:#888;background:#f5f5f5}
+.saved-item-share{padding:4px 10px;border:0.5px solid #1D9E75;border-radius:6px;background:#fff;color:#1D9E75;font-size:12px;cursor:pointer;flex-shrink:0;font-weight:500}
+.saved-item-share:hover{background:#E1F5EE}
 .empty-msg{text-align:center;color:#aaa;font-size:14px;padding:24px 0}
 .sync-key-disp{flex:1;padding:10px 12px;border:0.5px solid #e0e0e0;border-radius:8px;font-size:18px;font-weight:700;letter-spacing:3px;background:#f9f9f7;color:#1D9E75;text-align:center}
 @media(max-width:400px){
@@ -301,6 +303,18 @@ body{font-family:-apple-system,sans-serif;background:#f5f5f3;min-height:100vh;co
   </div>
 </div>
 
+<div class="overlay" id="share-overlay">
+  <div class="modal" style="text-align:left;padding:24px 20px">
+    <div style="display:flex;align-items:center;margin-bottom:14px">
+      <span style="font-size:16px;font-weight:600;flex:1" id="share-modal-title"></span>
+      <button id="share-overlay-close" style="background:none;border:none;font-size:20px;color:#aaa;cursor:pointer;padding:0 4px">✕</button>
+    </div>
+    <p style="font-size:12px;color:#888;margin-bottom:8px">共有URL（タップしてコピー）</p>
+    <div id="share-modal-url" style="font-size:13px;background:#f5f5f5;border-radius:8px;padding:10px 12px;word-break:break-all;color:#333;cursor:pointer;margin-bottom:12px;min-height:36px"></div>
+    <button class="btn-primary" id="share-modal-copy" style="width:100%">URLをコピー</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 let size=4, useFree=true;
@@ -389,13 +403,18 @@ function renderSavedList(){
           '<div class="saved-item-meta">'+item.size+'×'+item.size+' / '+item.date+'</div>'+
         '</div>'+
         '<div style="display:flex;gap:6px;flex-shrink:0">'+
+          '<button class="saved-item-share">共有</button>'+
           '<button class="saved-item-edit">編集</button>'+
           '<button class="saved-item-copy">複製</button>'+
           '<button class="saved-item-del">削除</button>'+
         '</div>';
       row.addEventListener('click',e=>{
-        if(e.target.classList.contains('saved-item-del')||e.target.classList.contains('saved-item-copy')||e.target.classList.contains('saved-item-edit'))return;
+        if(e.target.classList.contains('saved-item-del')||e.target.classList.contains('saved-item-copy')||e.target.classList.contains('saved-item-edit')||e.target.classList.contains('saved-item-share'))return;
         loadCard(item);
+      });
+      row.querySelector('.saved-item-share').addEventListener('click',e=>{
+        e.stopPropagation();
+        openShareModal(item);
       });
       row.querySelector('.saved-item-edit').addEventListener('click',e=>{
         e.stopPropagation();
@@ -455,6 +474,40 @@ function copyCard(item){
   buildInputList();
   show('s2');
 }
+
+function openShareModal(item){
+  if(!item.arranged||!item.arranged.length){alert('このカードはまだ配置が設定されていません。編集から配置を確定してください。');return;}
+  $('share-modal-title').textContent=item.name;
+  $('share-modal-url').textContent='URL生成中...';
+  $('share-modal-copy').disabled=true;
+  $('share-overlay').classList.add('show');
+  const data={s:item.size,c:item.arranged,f:item.useFree?1:0};
+  const longUrl=location.href.split('?')[0]+'?b='+encodeURIComponent(JSON.stringify(data));
+  fetch('https://is.gd/create.php?format=json&url='+encodeURIComponent(longUrl))
+    .then(r=>r.json())
+    .then(j=>{$('share-modal-url').textContent=j.shorturl||longUrl;})
+    .catch(()=>{$('share-modal-url').textContent=longUrl;})
+    .finally(()=>{$('share-modal-copy').disabled=false;});
+}
+$('share-overlay-close').addEventListener('click',()=>$('share-overlay').classList.remove('show'));
+$('share-overlay').addEventListener('click',e=>{if(e.target===$('share-overlay'))$('share-overlay').classList.remove('show');});
+$('share-modal-url').addEventListener('click',()=>{
+  const url=$('share-modal-url').textContent;
+  if(!url||url==='URL生成中...')return;
+  navigator.clipboard.writeText(url).then(()=>{
+    const orig=$('share-modal-url').style.background;
+    $('share-modal-url').style.background='#E1F5EE';
+    setTimeout(()=>$('share-modal-url').style.background=orig,800);
+  });
+});
+$('share-modal-copy').addEventListener('click',()=>{
+  const url=$('share-modal-url').textContent;
+  if(!url||url==='URL生成中...')return;
+  navigator.clipboard.writeText(url).then(()=>{
+    $('share-modal-copy').textContent='コピーしました！';
+    setTimeout(()=>$('share-modal-copy').textContent='URLをコピー',2000);
+  });
+});
 
 function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
